@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>DeepChat PY — ИИ-чат без ключа + Python</title>
+<meta name="description" content="Обычный чат с ИИ типа DeepSeek без API-ключа + инструментарий для работы с Python прямо из чата. Pyodide в браузере." />
+<link rel="stylesheet" href="./styles.css" />
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🐍</text></svg>" />
+</head>
+<body>
+<div id="app">
+  <!-- ===== Sidebar ===== -->
+  <aside id="sidebar">
+    <div class="brand">
+      <div class="logo">🧠🐍</div>
+      <div>
+        <div class="brand-name">DeepChat PY</div>
+        <div class="brand-sub">без ключа • free</div>
+      </div>
+      <button id="sidebarClose" class="icon-btn only-mobile" title="Закрыть">✕</button>
+    </div>
+    <button id="newChatBtn" class="btn primary full">＋ Новый чат</button>
+    <div class="side-label">История</div>
+    <div id="chatList" class="chat-list"></div>
+    <div class="side-label">Python-примеры</div>
+    <div class="quick-grid">
+      <button class="chip" data-py-example="hello">print</button>
+      <button class="chip" data-py-example="numpy">numpy</button>
+      <button class="chip" data-py-example="plot">график</button>
+      <button class="chip" data-py-example="fib">fibonacci</button>
+    </div>
+    <div class="side-footer">
+      <div class="status-row"><span id="apiDot" class="dot gray"></span><span id="apiStatus">API: проверка…</span></div>
+      <div class="status-row"><span id="pyDot" class="dot gray"></span><span id="pyStatus">Python: не загружен</span></div>
+      <div class="hint">ИИ: Pollinations (анонимно, без ключа). Python: Pyodide в браузере.</div>
+    </div>
+  </aside>
+
+  <!-- ===== Main ===== -->
+  <main id="main">
+    <header id="topbar">
+      <button id="sidebarOpen" class="icon-btn only-mobile" title="Меню">☰</button>
+      <select id="modelSelect" title="Модель">
+        <option value="openai" selected>openai • GPT-OSS 20B (free)</option>
+        <option value="mistral">mistral • Mistral 32K (free)</option>
+        <option value="llama">llama • Llama (free)</option>
+      </select>
+      <span id="keyBadge" class="badge ok" title="Ключ не нужен: запросы идут анонимно">без ключа 🔓</span>
+      <div class="spacer"></div>
+      <button id="viewChatBtn" class="seg active" title="Только чат">💬</button>
+      <button id="viewSplitBtn" class="seg" title="Чат + Python">◫</button>
+      <button id="viewPyBtn" class="seg" title="Только Python">🐍</button>
+      <button id="settingsBtn" class="icon-btn" title="Настройки">⚙️</button>
+    </header>
+
+    <div id="settingsPanel" class="settings hidden">
+      <label>Системный промпт
+        <textarea id="systemPrompt" rows="2">Ты — дружелюбный ИИ-ассистент. Отвечай по-русски. Если просят код на Python — давай полный запускаемый код в блоке ```python. Коротко объясняй, что делает код.</textarea>
+      </label>
+      <div class="settings-row">
+        <label>Температура <span id="tempVal">0.7</span>
+          <input id="tempRange" type="range" min="0" max="1.5" step="0.1" value="0.7" />
+        </label>
+        <label class="check"><input id="streamCheck" type="checkbox" checked /> Стриминг</label>
+        <label class="check"><input id="privateCheck" type="checkbox" checked /> private (не в ленту)</label>
+      </div>
+      <div class="settings-row">
+        <button id="exportMdBtn" class="btn small">⬇ .md</button>
+        <button id="exportJsonBtn" class="btn small">⬇ .json</button>
+        <button id="clearChatBtn" class="btn small danger">Очистить чат</button>
+      </div>
+    </div>
+
+    <div id="content">
+      <!-- Chat pane -->
+      <section id="chatPane">
+        <div id="messages"></div>
+        <div id="welcome" class="welcome">
+          <h1>Привет! Это чат с ИИ <span class="accent">без API-ключа</span></h1>
+          <p>Спроси что угодно. Попроси <b>написать Python-код</b> — запустишь его прямо здесь кнопкой <b>▶ Запустить</b>.</p>
+          <div class="suggestions">
+            <button data-q="Привет! Что ты умеешь?">👋 Что ты умеешь?</button>
+            <button data-q="Напиши на Python функцию fibonacci(n) и пример её вызова с выводом. Только код + короткое объяснение.">🐍 Пример: fibonacci</button>
+            <button data-q="Напиши Python-код: построй график sin(x) с помощью matplotlib, выведи значения первых 5 точек.">📈 Пример: график sin</button>
+            <button data-q="Объясни простыми словами, что такое список в Python, и покажи 3 примера кода.">📚 Списки в Python</button>
+          </div>
+          <div class="free-note">🔓 Бесплатно и без регистрации — через анонимный API Pollinations. Лимит: ~1 запрос за раз, при 429 подожди 30 сек.</div>
+        </div>
+        <div id="composerWrap">
+          <div id="attachBar" class="hidden"></div>
+          <div id="composer">
+            <textarea id="input" rows="1" placeholder="Спроси что-нибудь… (Enter — отправить, Shift+Enter — новая строка)"></textarea>
+            <button id="sendBtn" class="btn primary" title="Отправить">➤</button>
+            <button id="stopBtn" class="btn danger hidden" title="Остановить">■</button>
+          </div>
+          <div class="composer-hint">Python-код из ответов запускается локально в браузере (Pyodide). Твои данные никуда не отправляются, кроме текста вопросов к ИИ.</div>
+        </div>
+      </section>
+
+      <!-- Python pane -->
+      <section id="pyPane" class="hidden">
+        <div class="py-head">
+          <b>🐍 Python-лаборатория</b>
+          <span id="pyVersion" class="muted"></span>
+          <div class="spacer"></div>
+          <button id="pyLoadBtn" class="btn small">Загрузить Python</button>
+        </div>
+        <div class="py-toolbar">
+          <select id="pyExampleSelect" title="Примеры">
+            <option value="hello">Пример: hello</option>
+            <option value="numpy">Пример: numpy / pandas</option>
+            <option value="plot">Пример: matplotlib график</option>
+            <option value="fib">Пример: fibonacci</option>
+            <option value="input_demo">Пример: ввод данных</option>
+          </select>
+          <button id="pyRunBtn" class="btn primary small" title="Ctrl+Enter">▶ Запустить</button>
+          <button id="pyClearBtn" class="btn small">Очистить вывод</button>
+          <button id="pyResetBtn" class="btn small" title="Перезапустить интерпретатор">↺ Сброс</button>
+        </div>
+        <textarea id="pyEditor" spellcheck="false" placeholder="# Пиши Python здесь и жми ▶ Запустить&#10;print('Привет из браузера!')&#10;for i in range(5):&#10;    print(i, i**2)"></textarea>
+        <div class="py-install">
+          <input id="pyPackage" placeholder="pip-пакет, напр. numpy" />
+          <button id="pyInstallBtn" class="btn small">pip install</button>
+          <button id="pyExplainBtn" class="btn small">💬 Объяснить код</button>
+          <button id="pyFixBtn" class="btn small">🛠 Исправить ошибку</button>
+          <button id="pyToChatBtn" class="btn small">📥 Код → в чат</button>
+        </div>
+        <div class="py-out-label">Вывод</div>
+        <pre id="pyOutput" class="py-output">Python ещё не загружен. Нажми «Загрузить Python» (или просто «▶ Запустить»). Первая загрузка ~10–20 сек.</pre>
+        <div id="pyPlots" class="py-plots"></div>
+      </section>
+    </div>
+  </main>
+</div>
+
+<div id="toast" class="toast hidden"></div>
+
+<script src="./app.js"></script>
+</body>
+</html>
